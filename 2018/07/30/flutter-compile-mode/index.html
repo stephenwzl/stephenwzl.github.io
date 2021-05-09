@@ -1,0 +1,201 @@
+<!DOCTYPE html><html><head><meta name="generator" content="Hexo 3.9.0"><meta charset="utf-8"><meta name="X-UA-Compatible" content="IE=edge"><title> Flutter的编译模式 · stephenwzl</title><meta name="description" content="Flutter的编译模式 - stephenwzl"><meta name="viewport" content="width=device-width, initial-scale=1"><link rel="icon" href="/avatar.png"><link rel="stylesheet" href="/css/apollo-v1.css"><!-- Global site tag (gtag.js) - Google Analytics --><script async src="https://www.googletagmanager.com/gtag/js?id=UA-118080805-1"></script><script type="text/javascript">window.dataLayer = window.dataLayer || [];
+function gtag(){dataLayer.push(arguments);}
+gtag('js', new Date());
+gtag('config', 'UA-118080805-1');</script><link rel="search" type="application/opensearchdescription+xml" href="https://stephenwzl.github.io/atom.xml" title="stephenwzl"></head><body><div class="wrap"><header><a href="/" class="logo-link"><img src="/avatar.png" alt="logo"></a><ul class="nav nav-list"><li class="nav-list-item"><a href="/" target="_self" class="nav-list-link">BLOG</a></li><li class="nav-list-item"><a href="/archives/" target="_self" class="nav-list-link">ARCHIVE</a></li><li class="nav-list-item"><a href="http://weibo.com/wangzhilong110" target="_blank" class="nav-list-link">WEIBO</a></li><li class="nav-list-item"><a href="https://github.com/stephenwzl" target="_blank" class="nav-list-link">GITHUB</a></li></ul></header><main class="container"><div class="post"><article class="post-block"><h1 class="post-title">Flutter的编译模式</h1><div class="post-info">Jul 30, 2018</div><div class="post-content"><p>使用 Flutter构建过 App的人一定有一个困惑，就是 Flutter编译出的产物到底是什么玩意，有时候分为几个文件，有时候是一个动态库，真的叫人摸不着头脑。<br>本文详细解释一下 Flutter的编译模式。  </p>
+<a id="more"></a>
+<h1 id="编译模式的分类"><a href="#编译模式的分类" class="headerlink" title="编译模式的分类."></a>编译模式的分类.</h1><p>编程语言要达到可运行的目的需要经过编译，一般地来说，编译模式分为两类：JIT 和 AOT。  </p>
+<h2 id="JIT："><a href="#JIT：" class="headerlink" title="JIT："></a>JIT：</h2><p>JIT全称 Just In Time(即时编译），典型的例子就是 v8，它可以即时编译并运行 JavaScript。所以你只需要输入源代码字符串，v8就可以帮你编译并运行代码。通常来说，支持 JIT的语言一般能够支持自省函数（eval），在运行时动态地执行代码。<br>JIT模式的优势是显而易见的，可以动态下发和执行代码，而不用管用户的机器是什么架构，为应用的用户提供丰富而动态地内容。<br>但 JIT的劣势也是显而易见的，大量字符串的代码很容易让 JIT编译器花费很多时间和内存进行编译，给用户带来的直接感受就是应用启动慢。  </p>
+<h2 id="AOT："><a href="#AOT：" class="headerlink" title="AOT："></a>AOT：</h2><p>AOT全称 Ahead Of Time（事前编译），典型的例子就是 C/C++，LLVM或 GCC通过编译并生成 C/C++的二进制代码，然后这些二进制通过用户安装并取得执行权限后才可以通过进程加载执行。<br>AOT的优势也是显而易见的，事先编译好的二进制代码，加载和执行的速度都会非常快。（所以编程语言速度排行榜上前列都是 AOT编译类语言）这样的速度可以在密集计算场景下给用户带来非常好的体验，比如大型游戏的引擎渲染和逻辑执行。  </p>
+<p>但是 AOT的劣势也是显而易见的，编译需要区分用户机器的架构，生成不同架构的二进制代码，除了架构，二进制代码本身也会让用户下载的安装包比较大。二进制代码一般需要取得执行权限才可以执行，所以无法在权限比较严格的系统中进行动态更新（如 iOS）。</p>
+<h1 id="Dart的编译模式"><a href="#Dart的编译模式" class="headerlink" title="Dart的编译模式"></a>Dart的编译模式</h1><p>Flutter使用 Dart作为编程语言，自然其编译模式也脱离不了 Dart的干系。首先我们需要了解一下 Dart所支持的编译模式。    </p>
+<ul>
+<li><strong>Script</strong>：最普通的 JIT模式，在 PC命令行调用 dart vm执行 dart源代码文件即是这种模式。</li>
+<li><strong>Script Snapshot</strong>：JIT模式，和上一个不同的是，这里载入的是已经 token化的 dart源代码，提前执行了上一步的 lexer步骤。  </li>
+<li><strong>Application Snapshot</strong>：JIT模式，这种模式来源于 dart vm直接载入源码后 dump出数据。dart vm通过这种数据启动会更快。不过值得一提的是这种模式是区分架构的，在 x64上生成的数据不可以给 arm使用。</li>
+<li><strong>AOT</strong>：AOT模式，直接将 dart源码编译出 .S文件，然后通过汇编器生成对应架构的代码。  </li>
+</ul>
+<p>总结一下刚才的列表，可以发现：  </p>
+<table>
+<thead>
+<tr>
+<th style="text-align:center">模式/比较项</th>
+<th style="text-align:center">编译模式</th>
+<th style="text-align:center">区分架构</th>
+<th style="text-align:center">打包大小</th>
+<th style="text-align:center">动态化</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:center">Script</td>
+<td style="text-align:center">JIT</td>
+<td style="text-align:center">否</td>
+<td style="text-align:center">小</td>
+<td style="text-align:center">是</td>
+</tr>
+<tr>
+<td style="text-align:center">Script Snapshot</td>
+<td style="text-align:center">JIT</td>
+<td style="text-align:center">否</td>
+<td style="text-align:center">很小</td>
+<td style="text-align:center">是</td>
+<td></td>
+</tr>
+<tr>
+<td style="text-align:center">Application Snapshot</td>
+<td style="text-align:center">JIT</td>
+<td style="text-align:center">是</td>
+<td style="text-align:center">比较大</td>
+<td style="text-align:center">是（注意架构）</td>
+<td></td>
+</tr>
+<tr>
+<td style="text-align:center">AOT</td>
+<td style="text-align:center">AOT</td>
+<td style="text-align:center">是</td>
+<td style="text-align:center">比较大</td>
+<td style="text-align:center">否</td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<h1 id="Flutter的编译模式"><a href="#Flutter的编译模式" class="headerlink" title="Flutter的编译模式"></a>Flutter的编译模式</h1><p>Flutter 完全采用了 Dart，按道理来说编译模式一致才是，但是事实并不是这样。由于 Android和 iOS平台的生态差异，Flutter也衍生除了非常丰富的编译模式。  </p>
+<ul>
+<li><strong>Script</strong>：同 Dart Script模式一致，虽然 Flutter支持，但暂未看到使用，毕竟影响启动速度。  </li>
+<li><strong>Script Snapshot</strong>：同 Dart Script Snapshot一致，同样支持但未使用，Flutter有大量的视图渲染逻辑，纯 JIT模式影响执行速度。  </li>
+<li><strong>Kernel Snapshot</strong>：Dart的 bytecode 模式，与 Application Snapshot不同，bytecode模式是不区分架构的。 Kernel Snapshot在 Flutter项目内也叫 <strong>Core Snapshot</strong>。bytecode模式可以归类为 AOT编译。</li>
+<li><strong>Core JIT</strong>：Dart的一种二进制模式，将指令代码和 heap数据打包成文件，然后在 vm和 isolate启动时载入，直接标记内存可执行，可以说这是一种 AOT模式。Core JIT也被叫做 <strong>AOTBlob</strong>  </li>
+<li><strong>AOT Assembly</strong>: 即 Dart的 AOT模式。直接生成汇编源代码文件，由各平台自行汇编。  </li>
+</ul>
+<p>可以看出来，Flutter将 Dart的编译模式复杂化了，多了不少概念，要一下叙述清楚是比较困难的，所以我们着重从 Flutter应用开发的各个阶段来解读。  </p>
+<h2 id="开发阶段的编译模式"><a href="#开发阶段的编译模式" class="headerlink" title="开发阶段的编译模式"></a>开发阶段的编译模式</h2><p>在开发阶段，我们需要 Flutter的 Hot Reload和 Hot Restart功能，方便 UI快速成型。同时，框架层也需要比较高的性能来进行视图渲染展现。因此开发模式下，Flutter使用了 Kernel Snapshot模式编译。<br>在打包产物中，你将发现几样东西：  </p>
+<ul>
+<li><strong>isolate_snapshot_data</strong>：用于加速 isolate启动，业务无关代码，固定，仅和 flutter engine版本有关  </li>
+<li><strong>platform.dill</strong>：和 dart vm相关的 kernel代码，仅和 dart版本以及 engine编译版本有关。固定，业务无关代码。  </li>
+<li><strong>vm_snapshot_data</strong>: 用于加速 dart vm启动的产物，业务无关代码，仅和 flutter engine版本有关  </li>
+<li><strong>kernel_blob.bin</strong>：业务代码产物</li>
+</ul>
+<table>
+<thead>
+<tr>
+<th style="text-align:center">项目/平台</th>
+<th style="text-align:center">Android</th>
+<th style="text-align:center">iOS </th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:center">代码环境</td>
+<td style="text-align:center">debug</td>
+<td style="text-align:center">debug</td>
+</tr>
+<tr>
+<td style="text-align:center">编译模式</td>
+<td style="text-align:center">Kernel Snapshot</td>
+<td style="text-align:center">Kernel Snapshot</td>
+</tr>
+<tr>
+<td style="text-align:center">打包工具</td>
+<td style="text-align:center">dart vm (2.0)</td>
+<td style="text-align:center">dart vm (2.0)</td>
+</tr>
+<tr>
+<td style="text-align:center">Flutter命令</td>
+<td style="text-align:center">flutter build bundle</td>
+<td style="text-align:center">flutter build bundle  </td>
+</tr>
+<tr>
+<td style="text-align:center">打包产物</td>
+<td style="text-align:center">flutter_assets/*</td>
+<td style="text-align:center">flutter_assets/*</td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<h2 id="生产阶段的编译模式"><a href="#生产阶段的编译模式" class="headerlink" title="生产阶段的编译模式"></a>生产阶段的编译模式</h2><p>在生产阶段，应用需要的是非常快的速度，所以 Android和 iOS target毫无意外地都选择了 AOT打包。不过由于平台特性不同，打包模式也是天壤之别。    </p>
+<table>
+<thead>
+<tr>
+<th style="text-align:center">项目/平台</th>
+<th style="text-align:center">Android</th>
+<th style="text-align:center">iOS</th>
+<th style="text-align:center">Android(–build-shared-library)    </th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:center">代码环境</td>
+<td style="text-align:center">release</td>
+<td style="text-align:center">release</td>
+<td style="text-align:center">release</td>
+</tr>
+<tr>
+<td style="text-align:center">编译模式</td>
+<td style="text-align:center">Core JIT</td>
+<td style="text-align:center">AOT Assembly</td>
+<td style="text-align:center">AOT Assembly</td>
+</tr>
+<tr>
+<td style="text-align:center">打包工具</td>
+<td style="text-align:center">gen_snapshot</td>
+<td style="text-align:center">gen_snapshot</td>
+<td style="text-align:center">gen_snapshot</td>
+</tr>
+<tr>
+<td style="text-align:center">Flutter命令</td>
+<td style="text-align:center">flutter build aot</td>
+<td style="text-align:center">flutter build aot –ios</td>
+<td style="text-align:center">flutter build aot –build-shared-library</td>
+</tr>
+<tr>
+<td style="text-align:center">打包产物</td>
+<td style="text-align:center">flutter_assets/*</td>
+<td style="text-align:center">App.framework</td>
+<td style="text-align:center">app.so  </td>
+</tr>
+</tbody>
+</table>
+<p>首先我们很容易认识到 iOS平台上做法的原因：App Store审核条例不允许动态下发可执行二进制代码。<br>所以在 iOS上，除了 JavaScript，其他语言运行时的实现都选择了 AOT。（比如 OpenJDK在 iOS实现就是 AOT）  </p>
+<p>在 Android上，Flutter的做法有点意思：支持了两种不同的路子。<br><strong>Core JIT</strong>的打包产物有 4个：isolate_snapshot_data, vm_snapshot_data, isolate_snapshot_instr, vm_snapshot_instr.  我们不认识的产物只有 2个：isolate_snapshot_instr和 vm_snapshot_instr，其实它俩代表着 vm和 isolate启动后所承载的指令等数据，在载入后，直接将该块内存执行即可。<br>Android的 <strong>AOT Assembly</strong>打包方式很容易让人想到需要支持多架构，无疑增大了代码包，并且该处代码需要从 JNI调用，远不如 Core JIT的 Java API方便。所以 Android上默认使用 Core JIT打包，而不是 AOT Assembly。  </p>
+<h1 id="Flutter-Engine对编译模式的支持"><a href="#Flutter-Engine对编译模式的支持" class="headerlink" title="Flutter Engine对编译模式的支持"></a>Flutter Engine对编译模式的支持</h1><p>在我的上篇文章：<a href="/2018/05/14/flutter-principle/">Flutter原理简解</a>中提到，engine承载了 dart运行时，毫无疑问 engine需要和打包出来的代码对的上号才行。<br>在 engine的编译模式中，Flutter是这样选择的：  </p>
+<table>
+<thead>
+<tr>
+<th style="text-align:center">项目/平台</th>
+<th style="text-align:center">iOS</th>
+<th style="text-align:center">Android </th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:center">Script</td>
+<td style="text-align:center">不支持</td>
+<td style="text-align:center">不支持</td>
+</tr>
+<tr>
+<td style="text-align:center">ScriptSnapshot</td>
+<td style="text-align:center">理论支持</td>
+<td style="text-align:center">理论支持</td>
+</tr>
+<tr>
+<td style="text-align:center">Kernel Snapshot</td>
+<td style="text-align:center">支持，runmode = dynamic</td>
+<td style="text-align:center">支持，runmode = dynamic  </td>
+</tr>
+<tr>
+<td style="text-align:center">CoreJIT</td>
+<td style="text-align:center">不支持</td>
+<td style="text-align:center">支持</td>
+</tr>
+<tr>
+<td style="text-align:center">AOT Assembly</td>
+<td style="text-align:center">支持</td>
+<td style="text-align:center">支持</td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<p>所以我们可以看到，Flutter的编译模式是完全根据 Engine的支持度来设计的。  </p>
+<h1 id="结论"><a href="#结论" class="headerlink" title="结论"></a>结论</h1><p>看到这里，我们完全可以得出一个结论：Flutter是一种高性能的、<strong>可跨平台的</strong>、<strong>动态化</strong>应用开发方案。<br>在 iOS和 Android平台上，动态化完全可由 Kernel Snapshot打包实现，并且产物是一致通用的。不过目前通过打包工具进行了阉割，只能生成 debug产物。<br>并且如果不需要动态化，同样可以打包出拥有更高执行性能的二进制库文件使用。这个特性目前就已经支持  </p>
+<p>有了理论的支持，我们就可以着手做改造的事了。</p>
+</div></article></div></main><footer><div class="paginator"><a href="/2018/11/06/gui-framework-inside/" class="prev">PREV</a><a href="/2018/07/03/ios-flutter-integrate/" class="next">NEXT</a></div><div class="copyright"><p>© 2015 - 2021 <a href="https://stephenwzl.github.io">stephenwzl</a>.</p></div></footer></div><script async src="//cdn.bootcss.com/mathjax/2.7.0/MathJax.js?config=TeX-MML-AM_CHTML" integrity="sha384-crwIf/BuaWM9rM65iM+dWFldgQ1Un8jWZMuh3puxb8TOY9+linwLoI7ZHZT+aekW" crossorigin="anonymous"></script></body></html>
